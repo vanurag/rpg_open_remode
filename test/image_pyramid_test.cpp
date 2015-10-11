@@ -64,6 +64,15 @@ TEST(RMDCuTests, downSampleTest)
   cv::Mat cu_down_sampled(out_img.height, out_img.width, CV_32FC1);
   out_img.getDevData(reinterpret_cast<float*>(cu_down_sampled.data));
 
+  for(size_t y=2; y<new_ocv_h-2; ++y)
+  {
+    for(size_t x=2; x<new_ocv_w-2; ++x)
+    {
+      EXPECT_NEAR(ocv_down_sampled.at<float>(y, x), cu_down_sampled.at<float>(y, x), 0.1f)
+          << "(r, c) = (" << y << ", " << x <<")";
+    }
+  }
+
   cv::imshow("CUDA Downsampled", cu_down_sampled);
   cv::waitKey();
 }

@@ -21,18 +21,69 @@
 namespace rmd
 {
 
+__constant__
+float c_kernel[5];
+
+extern "C" void setConvolutionKernel(float *h_Kernel)
+{
+  cudaMemcpyToSymbol(c_kernel, h_Kernel, 5*sizeof(float));
+}
+
 __global__
-void pyrDownKernel(DeviceImage<float> *out_dev_ptr)
+void convolutionRowsKernel(DeviceImage<float> *out_dev_ptr)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
 
   DeviceImage<float> &out_img = *out_dev_ptr;
 
-  if(x >= out_img.width
-     || y >= out_img.height
-     || x < 0
-     || y < 0)
+  if(x >= out_img.width || y >= out_img.height)
+    return;
+
+  const float xx = x+0.5f;
+  const float yy = y+0.5f;
+
+  float sum = 0.0f;
+  for (int k = -2; k <= 2; ++k)
+  {
+    sum += tex2D(img_tex, xx+static_cast<float>(k), yy) * c_kernel[2-k];
+  }
+  out_img(x, y) = sum;
+  __syncthreads();
+}
+
+__global__
+void convolutionColsKernel(DeviceImage<float> *out_dev_ptr)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  DeviceImage<float> &out_img = *out_dev_ptr;
+
+  if(x >= out_img.width || y >= out_img.height)
+    return;
+
+  const float xx = x+0.5f;
+  const float yy = y+0.5f;
+
+  float sum = 0.0f;
+  for (int k = -2; k <= 2; ++k)
+  {
+    sum += tex2D(img_tex, xx, yy+static_cast<float>(k)) * c_kernel[2-k];
+  }
+  out_img(x, y) = sum;
+  __syncthreads();
+}
+
+__global__
+void halfSampleKernel(DeviceImage<float> *out_dev_ptr)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+  DeviceImage<float> &out_img = *out_dev_ptr;
+
+  if(x >= out_img.width || y >= out_img.height)
     return;
 
   const float xx = x+0.5f;
@@ -45,8 +96,6 @@ void pyrDown(
     const DeviceImage<float> &in_img,
     DeviceImage<float> &out_img)
 {
-  rmd::bindTexture(img_tex, in_img);
-
   // CUDA fields
   dim3 dim_block;
   dim3 dim_grid;
@@ -54,7 +103,15 @@ void pyrDown(
   dim_block.y = 16;
   dim_grid.x = (in_img.width  + dim_block.x - 1) / dim_block.x;
   dim_grid.y = (in_img.height + dim_block.y - 1) / dim_block.y;
-  pyrDownKernel<<<dim_grid, dim_block>>>(out_img.dev_ptr);
+
+  float h_kernel[5] = {1.0f/16.0f, 4.0f/16.0f, 6.0f/16.0f, 4.0f/16.0f, 1.0f/16.0f};
+  setConvolutionKernel(h_kernel);
+  rmd::bindTexture(img_tex, in_img, cudaFilterModePoint);
+  convolutionRowsKernel<<<dim_grid, dim_block>>>(in_img.dev_ptr);
+  rmd::bindTexture(img_tex, in_img, cudaFilterModePoint);
+  convolutionColsKernel<<<dim_grid, dim_block>>>(in_img.dev_ptr);
+  rmd::bindTexture(img_tex, in_img, cudaFilterModePoint);
+  halfSampleKernel<<<dim_grid, dim_block>>>(out_img.dev_ptr);
   cudaDeviceSynchronize();
 }
 
