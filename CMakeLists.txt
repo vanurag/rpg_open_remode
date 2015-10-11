@@ -89,6 +89,7 @@ CUDA_ADD_LIBRARY(
     remodetest
     test/copy.cu
     test/sobel.cu
+    test/device_pyramid_test.cu
 )
 
 add_executable(all_tests
@@ -97,6 +98,7 @@ add_executable(all_tests
   test/main_test.cpp
   test/dataset.cpp
   test/epipolar_test.cpp
+  test/image_pyramid_test.cpp
 )
 
 target_link_libraries(
