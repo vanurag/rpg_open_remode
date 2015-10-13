@@ -100,7 +100,7 @@ struct DeviceImage
 
   /// Download the data from the device memory to aligned_data_row_major, a preallocated array in host memory
   __host__
-  void getDevData(ElementType* aligned_data_row_major) const
+  void getDevData(ElementType * aligned_data_row_major) const
   {
     const cudaError err = cudaMemcpy2D(
           aligned_data_row_major,      // destination memory address

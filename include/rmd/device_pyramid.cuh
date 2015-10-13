@@ -27,6 +27,24 @@ void pyrDown(
     const DeviceImage<float> &in_img,
     DeviceImage<float> &out_img);
 
+struct DevicePyramid
+{
+  __host__
+  DevicePyramid(size_t width, size_t height, int num_levels);
+
+  __host__
+  ~DevicePyramid();
+
+  __host__
+  void setDevData(const float * aligned_data_row_major);
+
+  __host__
+  void getDevData(float * aligned_data_row_major, int level) const;
+
+  DeviceImage<float> **images;
+  const int num_levels;
+};
+
 } // rmd namespace
 
 #endif // RMD_DEVICE_PYRAMID_CUH

@@ -78,3 +78,36 @@ TEST(RMDCuTests, downSampleTest)
   cv::imshow("Difference", cv::abs(ocv_down_sampled-cu_down_sampled));
   cv::waitKey();
 }
+
+TEST(RMDCuTests, pyramidTest)
+{
+  cv::Mat img = cv::imread("../test_data/images/scene_000.png", CV_LOAD_IMAGE_GRAYSCALE);
+  cv::Mat img_flt;
+  img.convertTo(img_flt, CV_32F, 1./255.);
+
+  const size_t orig_w = img_flt.cols;
+  const size_t orig_h = img_flt.rows;
+
+  // CUDA pyramid
+  rmd::DevicePyramid pyr(orig_w, orig_h, 3);
+
+  StopWatchInterface * timer = NULL;
+  sdkCreateTimer(&timer);
+  sdkResetTimer(&timer);
+  sdkStartTimer(&timer);
+  pyr.setDevData(reinterpret_cast<float*>(img_flt.data));
+  sdkStopTimer(&timer);
+  double t = sdkGetAverageTimerValue(&timer) / 1000.0;
+  printf("CUDA execution time: %f seconds.\n", t);
+
+  for(int i=0; i<pyr.num_levels; ++i)
+  {
+    std::stringstream ss;
+    ss << "Pyramid Level " << i;
+    auto dev_img = pyr.images[i];
+    cv::Mat cv_img(dev_img->height, dev_img->width, CV_32FC1);
+    dev_img->getDevData(reinterpret_cast<float*>(cv_img.data));
+    cv::imshow(ss.str().c_str(), cv_img);
+  }
+  cv::waitKey();
+}

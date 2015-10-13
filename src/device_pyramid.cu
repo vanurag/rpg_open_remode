@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <rmd/device_image.cuh>
+#include <rmd/device_pyramid.cuh>
 #include <rmd/texture_memory.cuh>
 
 namespace rmd
@@ -120,6 +120,46 @@ void pyrDown(
   halfSampleKernel<<<dim_grid, dim_block>>>(out_img.dev_ptr);
 
   cudaDeviceSynchronize();
+}
+
+__host__
+DevicePyramid::DevicePyramid(size_t w, size_t h, int n)
+  : num_levels(n)
+{
+  assert(n >= 0);
+  images = new DeviceImage<float>* [num_levels];
+  images[0] = new DeviceImage<float>(w, h);
+  for(int i=1; i<num_levels; ++i)
+  {
+    images[i] = new DeviceImage<float>((images[i-1]->width+1)/2, (images[i-1]->height+1)/2);
+  }
+}
+
+__host__
+DevicePyramid::~DevicePyramid()
+{
+  for(int i=0; i<num_levels; ++i)
+  {
+    delete images[i];
+  }
+  delete images;
+}
+
+__host__
+void DevicePyramid::setDevData(const float * aligned_data_row_major)
+{
+  images[0]->setDevData(aligned_data_row_major);
+  for(int i=1; i<num_levels; ++i)
+  {
+    pyrDown(*images[i-1], *images[i]);
+  }
+}
+
+__host__
+void DevicePyramid::getDevData(float * aligned_data_row_major, int level) const
+{
+  assert(level >= 0 && level < num_levels);
+  images[level]->getDevData(aligned_data_row_major);
 }
 
 } // rmd namespace
