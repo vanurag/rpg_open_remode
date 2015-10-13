@@ -44,9 +44,9 @@ void convolutionRowsKernel(DeviceImage<float> *out_dev_ptr)
   const float yy = y+0.5f;
 
   float sum = 0.0f;
-  for (int k = -2; k <= 2; ++k)
+  for (int k = 0; k < 5; ++k)
   {
-    sum += tex2D(img_tex, xx+static_cast<float>(k), yy) * c_kernel[2-k];
+    sum += tex2D(img_tex, xx-static_cast<float>(k), yy) * c_kernel[k];
   }
   out_img(x, y) = sum;
   __syncthreads();
@@ -67,9 +67,9 @@ void convolutionColsKernel(DeviceImage<float> *out_dev_ptr)
   const float yy = y+0.5f;
 
   float sum = 0.0f;
-  for (int k = -2; k <= 2; ++k)
+  for (int k = 0; k < 5; ++k)
   {
-    sum += tex2D(img_tex, xx, yy+static_cast<float>(k)) * c_kernel[2-k];
+    sum += tex2D(img_tex, xx, yy-static_cast<float>(k)) * c_kernel[k];
   }
   out_img(x, y) = sum;
   __syncthreads();

@@ -74,5 +74,7 @@ TEST(RMDCuTests, downSampleTest)
   }
 
   cv::imshow("CUDA Downsampled", cu_down_sampled);
+  cv::imshow("OpenCV Downsampled", ocv_down_sampled);
+  cv::imshow("Difference", cv::abs(ocv_down_sampled-cu_down_sampled));
   cv::waitKey();
 }
