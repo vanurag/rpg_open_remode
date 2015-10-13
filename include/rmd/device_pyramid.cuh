@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef RMD_DEVICE_PYRAMID_TEST_CUH
-#define RMD_DEVICE_PYRAMID_TEST_CUH
+#ifndef RMD_DEVICE_PYRAMID_CUH
+#define RMD_DEVICE_PYRAMID_CUH
 
 #include <rmd/device_image.cuh>
 
@@ -29,4 +29,4 @@ void pyrDown(
 
 } // rmd namespace
 
-#endif // RMD_DEVICE_PYRAMID_TEST_CUH
+#endif // RMD_DEVICE_PYRAMID_CUH

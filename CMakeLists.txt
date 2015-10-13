@@ -55,6 +55,7 @@ ADD_DEFINITIONS(-DRMD_MAX_EXTENT_EPIPOLAR_SEARCH=100)
 CUDA_ADD_LIBRARY(
     remode
     src/check_cuda_device.cu
+    src/device_pyramid.cu
     src/seed_matrix.cu
     src/depthmap_denoiser.cu
 )
@@ -89,7 +90,6 @@ CUDA_ADD_LIBRARY(
     remodetest
     test/copy.cu
     test/sobel.cu
-    test/device_pyramid_test.cu
 )
 
 add_executable(all_tests

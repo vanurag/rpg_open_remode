@@ -19,7 +19,7 @@
 #include <cuda_toolkit/helper_timer.h>
 #include <opencv2/opencv.hpp>
 
-#include "device_pyramid_test.cuh"
+#include <rmd/device_pyramid.cuh>
 
 TEST(RMDCuTests, downSampleTest)
 {
@@ -68,7 +68,7 @@ TEST(RMDCuTests, downSampleTest)
   {
     for(size_t x=2; x<new_ocv_w-2; ++x)
     {
-      EXPECT_NEAR(ocv_down_sampled.at<float>(y, x), cu_down_sampled.at<float>(y, x), 0.1f)
+      EXPECT_NEAR(ocv_down_sampled.at<float>(y, x), cu_down_sampled.at<float>(y, x), 0.25f)
           << "(r, c) = (" << y << ", " << x <<")";
     }
   }

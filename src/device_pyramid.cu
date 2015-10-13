@@ -16,7 +16,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <rmd/device_image.cuh>
-#include "test_texture_memory.cuh"
+#include <rmd/texture_memory.cuh>
 
 namespace rmd
 {
@@ -44,9 +44,9 @@ void convolutionRowsKernel(DeviceImage<float> *out_dev_ptr)
   const float yy = y+0.5f;
 
   float sum = 0.0f;
-  for (int k = 0; k < 5; ++k)
+  for (int k = -2; k <= 2; ++k)
   {
-    sum += tex2D(img_tex, xx-static_cast<float>(k), yy) * c_kernel[k];
+    sum += tex2D(curr_img_tex, xx+static_cast<float>(k), yy) * c_kernel[2-k];
   }
   out_img(x, y) = sum;
   __syncthreads();
@@ -67,9 +67,9 @@ void convolutionColsKernel(DeviceImage<float> *out_dev_ptr)
   const float yy = y+0.5f;
 
   float sum = 0.0f;
-  for (int k = 0; k < 5; ++k)
+  for (int k = -2; k <= 2; ++k)
   {
-    sum += tex2D(img_tex, xx, yy-static_cast<float>(k)) * c_kernel[k];
+    sum += tex2D(curr_img_tex, xx, yy+static_cast<float>(k)) * c_kernel[2-k];
   }
   out_img(x, y) = sum;
   __syncthreads();
@@ -89,7 +89,8 @@ void halfSampleKernel(DeviceImage<float> *out_dev_ptr)
   const float xx = x+0.5f;
   const float yy = y+0.5f;
 
-  out_img(x, y) = tex2D(img_tex, xx*2.0f, yy*2.0f);
+  out_img(x, y) = tex2D(curr_img_tex, xx*2.0f, yy*2.0f);
+  __syncthreads();
 }
 
 void pyrDown(
@@ -106,12 +107,18 @@ void pyrDown(
 
   float h_kernel[5] = {1.0f/16.0f, 4.0f/16.0f, 6.0f/16.0f, 4.0f/16.0f, 1.0f/16.0f};
   setConvolutionKernel(h_kernel);
-  rmd::bindTexture(img_tex, in_img, cudaFilterModePoint);
+
+  rmd::bindTexture(curr_img_tex, in_img, cudaFilterModePoint);
   convolutionRowsKernel<<<dim_grid, dim_block>>>(in_img.dev_ptr);
-  rmd::bindTexture(img_tex, in_img, cudaFilterModePoint);
+
+  rmd::bindTexture(curr_img_tex, in_img, cudaFilterModePoint);
   convolutionColsKernel<<<dim_grid, dim_block>>>(in_img.dev_ptr);
-  rmd::bindTexture(img_tex, in_img, cudaFilterModePoint);
+
+  dim_grid.x = (out_img.width  + dim_block.x - 1) / dim_block.x;
+  dim_grid.y = (out_img.height + dim_block.y - 1) / dim_block.y;
+  rmd::bindTexture(curr_img_tex, in_img, cudaFilterModePoint);
   halfSampleKernel<<<dim_grid, dim_block>>>(out_img.dev_ptr);
+
   cudaDeviceSynchronize();
 }
 
