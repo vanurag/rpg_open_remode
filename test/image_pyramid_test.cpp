@@ -89,7 +89,7 @@ TEST(RMDCuTests, pyramidTest)
   const size_t orig_h = img_flt.rows;
 
   // CUDA pyramid
-  rmd::DevicePyramid pyr(orig_w, orig_h, 3);
+  rmd::DevicePyramid pyr(orig_w, orig_h, 4);
 
   StopWatchInterface * timer = NULL;
   sdkCreateTimer(&timer);

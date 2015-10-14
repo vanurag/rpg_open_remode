@@ -108,15 +108,17 @@ void pyrDown(
   float h_kernel[5] = {1.0f/16.0f, 4.0f/16.0f, 6.0f/16.0f, 4.0f/16.0f, 1.0f/16.0f};
   setConvolutionKernel(h_kernel);
 
-  rmd::bindTexture(curr_img_tex, in_img, cudaFilterModePoint);
-  convolutionRowsKernel<<<dim_grid, dim_block>>>(in_img.dev_ptr);
+  DeviceImage<float> tmp_img(in_img.width, in_img.height);
 
   rmd::bindTexture(curr_img_tex, in_img, cudaFilterModePoint);
-  convolutionColsKernel<<<dim_grid, dim_block>>>(in_img.dev_ptr);
+  convolutionRowsKernel<<<dim_grid, dim_block>>>(tmp_img.dev_ptr);
+
+  rmd::bindTexture(curr_img_tex, tmp_img, cudaFilterModePoint);
+  convolutionColsKernel<<<dim_grid, dim_block>>>(tmp_img.dev_ptr);
 
   dim_grid.x = (out_img.width  + dim_block.x - 1) / dim_block.x;
   dim_grid.y = (out_img.height + dim_block.y - 1) / dim_block.y;
-  rmd::bindTexture(curr_img_tex, in_img, cudaFilterModePoint);
+  rmd::bindTexture(curr_img_tex, tmp_img, cudaFilterModePoint);
   halfSampleKernel<<<dim_grid, dim_block>>>(out_img.dev_ptr);
 
   cudaDeviceSynchronize();
