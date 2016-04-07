@@ -25,6 +25,9 @@
 #include <svo_msgs/DenseInput.h>
 #include <ros/ros.h>
 
+#include <opencv2/viz/vizcore.hpp>
+#include <opencv2/viz/types.hpp>
+
 namespace rmd
 {
 
@@ -48,6 +51,17 @@ public:
 private:
   void denoiseAndPublishResults();
   void publishConvergenceMap();
+
+  // pose viz
+  cv::viz::KeyboardEvent viz_key_event;
+  static cv::viz::Viz3d viz_window_;
+  static cv::Affine3f viz_pose_;
+  static void VizKeyboardCallback(const cv::viz::KeyboardEvent&, void*) {
+    std::cout << "Setting VIZ viewing angle to camera's viewing direction" << std::endl;
+    cv::Affine3f viz_viewer_pose = viz_pose_;
+    viz_viewer_pose = viz_viewer_pose.translate(cv::Vec3f(0.0, 0.0, -10.0));
+    viz_window_.setViewerPose(viz_viewer_pose);
+  }
 
   std::shared_ptr<rmd::Depthmap> depthmap_;
   State state_;

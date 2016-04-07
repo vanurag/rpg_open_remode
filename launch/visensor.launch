@@ -1,0 +1,19 @@
+<launch>
+  <node pkg="rpg_open_remode" type="depthmap_node" name="remode" clear_params="true" output="screen">
+    <param name="cam_width" value="752" />
+    <param name="cam_height" value="480" />
+    <param name="cam_fx" value="469.3034513741438" />
+    <param name="cam_cx" value="391.3985884834755" />
+    <param name="cam_fy" value="470.34763920064404" />
+    <param name="cam_cy" value="242.50536654383617" />
+    <param name="cam_k1" value="-0.287050381836307" />
+    <param name="cam_k2" value="0.08198077814449153" />
+    <param name="cam_r1" value="0.0002772925288049092" />
+    <param name="cam_r2" value="-0.00023430687225549701" />
+    <param name="ref_compl_perc" value="50.0" />
+    <param name="max_dist_from_ref" value="0.5" />
+    <param name="publish_conv_every_n" value="2" />
+
+    <param name="dense_input" value="/rovio/dense_input0" />
+  </node>   
+</launch>

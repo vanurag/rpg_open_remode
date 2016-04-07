@@ -19,6 +19,8 @@
 #include <rmd/check_cuda_device.cuh>
 #include <rmd/depthmap_node.h>
 
+#include <vikit/params_helper.h>
+
 int main(int argc, char **argv)
 {
   if(!rmd::checkCudaDevice(argc, argv))
@@ -33,7 +35,12 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
-  std::string dense_input_topic("/svo/dense_input");
+  std::string dense_input_topic;
+  if(vk::hasParam("remode/dense_input")) {
+    dense_input_topic = vk::getParam<std::string>("remode/dense_input");
+  } else {
+    dense_input_topic = "/svo/dense_input";
+  }
   ros::Subscriber dense_input_sub = nh.subscribe(
         dense_input_topic,
         1,

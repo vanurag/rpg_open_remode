@@ -28,9 +28,13 @@
 
 #include <future>
 
+cv::viz::Viz3d rmd::DepthmapNode::viz_window_ = cv::viz::Viz3d("Dense Input Pose");
+cv::Affine3f rmd::DepthmapNode::viz_pose_ = cv::Affine3f();
+
 rmd::DepthmapNode::DepthmapNode(ros::NodeHandle &nh)
   : nh_(nh)
-  , num_msgs_(0)
+  , num_msgs_(0),
+  viz_key_event(cv::viz::KeyboardEvent::Action::KEY_DOWN, "A", cv::viz::KeyboardEvent::ALT, 1)
 {
   state_ = rmd::State::TAKE_REFERENCE_FRAME;
 }
@@ -82,6 +86,11 @@ bool rmd::DepthmapNode::init()
 
   publisher_.reset(new rmd::Publisher(nh_, depthmap_));
 
+  // VIZ
+  viz_window_.registerKeyboardCallback(VizKeyboardCallback);
+  viz_window_.setWindowSize(cv::Size(600, 600));
+  viz_window_.showWidget("Dense Input Pose", cv::viz::WCoordinateSystem(100.0));
+
   return true;
 }
 
@@ -116,9 +125,26 @@ void rmd::DepthmapNode::denseInputCallback(
         dense_input->pose.position.y,
         dense_input->pose.position.z);
 
+  // visualize camera pose
+  Matrix<float, 3, 4> cam_pose = T_world_curr.data; // row major
+  cv::Mat pose_mat(3, 3, CV_32F);
+  float* mat_pointer = (float*)pose_mat.data;
+  for (int row = 0; row < 3; ++row) {
+    for (int col = 0; col < 3; ++col) {
+      mat_pointer[3*row + col] = cam_pose(row, col);
+    }
+  }
+  viz_pose_.rotation(pose_mat);
+  viz_pose_.translation(
+      cv::Vec3f(100*cam_pose(0, 3), 100*cam_pose(1, 3), 100*cam_pose(2, 3)));
+  viz_window_.showWidget("Coordinate Widget", cv::viz::WCoordinateSystem(50.0));
+  viz_window_.setWidgetPose("Dense Input Pose", viz_pose_);
+  viz_window_.spinOnce(1, true);
+
   std::cout << "DEPTHMAP NODE: received image "
             << img_8uC1.cols << "x" << img_8uC1.rows
             <<  std::endl;
+  std::cout << "minmax: " << dense_input->min_depth << " " << dense_input->max_depth << std::endl;
   std::cout << "T_world_curr:" << std::endl;
   std::cout << T_world_curr << std::endl;
 
@@ -145,6 +171,7 @@ void rmd::DepthmapNode::denseInputCallback(
     const float perc_conv = depthmap_->getConvergedPercentage();
     const float dist_from_ref = depthmap_->getDistFromRef();
     std::cout << "INFO: percentage of converged measurements: " << perc_conv << "%" << std::endl;
+    std::cout << "INFO: dist from ref: " << dist_from_ref << std::endl;
     if(perc_conv > ref_compl_perc_ || dist_from_ref > max_dist_from_ref_)
     {
       state_ = State::TAKE_REFERENCE_FRAME;
