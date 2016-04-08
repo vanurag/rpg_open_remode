@@ -23,6 +23,9 @@
 #include <rmd/publisher.h>
 
 #include <svo_msgs/DenseInput.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
 #include <ros/ros.h>
 
 #include <opencv2/viz/vizcore.hpp>
@@ -48,6 +51,8 @@ public:
   bool init();
   void denseInputCallback(
       const svo_msgs::DenseInputConstPtr &dense_input);
+  void denseInputAndExternalDepthCallback(const svo_msgs::DenseInputConstPtr& dense_msg,
+                                          const sensor_msgs::ImageConstPtr& depth_msg);
 private:
   void denoiseAndPublishResults();
   void publishConvergenceMap();
@@ -76,13 +81,11 @@ private:
   std::unique_ptr<rmd::Publisher> publisher_;
 
   // external depthmap related
-  void ROSDepthImageCallback(const sensor_msgs::ImageConstPtr& depth_msg);
   void transformExternalDepthmap();
   float ext_fx_, ext_fy_, ext_cx_, ext_cy_;
   rmd::SE3<float> ext_cam_to_cam_;
-  image_transport::ImageTransport external_depth_it_;
-  image_transport::Subscriber external_depth_sub_;
-  std::string external_depth_topic_;
+//  image_transport::ImageTransport external_depth_it_;
+//  image_transport::Subscriber external_depth_sub_;
 //  sensor_msgs::ImageConstPtr external_depth_msg_;
   cv::Mat external_depth_uchar_, external_depth_float_, transformed_external_depth_float_;
   bool external_depth_available_;

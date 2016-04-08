@@ -17,7 +17,7 @@
 
     <param name="dense_input" value="/rovio/dense_input0" />
     
-    <param name="external_depthmap_source" value="/kinect2/sd/image_dept" />
+    <param name="external_depthmap_source" value="/kinect2/sd/image_depth" />
     <param name="external_cam_fx" value="364.45582576467052" />
     <param name="external_cam_cx" value="252.88977457211502" />
     <param name="external_cam_fy" value="363.95577763605320" />

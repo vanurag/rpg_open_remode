@@ -41,11 +41,31 @@ int main(int argc, char **argv)
   } else {
     dense_input_topic = "/svo/dense_input";
   }
-  ros::Subscriber dense_input_sub = nh.subscribe(
-        dense_input_topic,
-        1,
-        &rmd::DepthmapNode::denseInputCallback,
-        &dm_node);
+  std::string external_depth_topic;
+  bool external_depth_source_available = false;
+  if(vk::hasParam("remode/external_depthmap_source")) {
+    external_depth_source_available = true;
+    external_depth_topic = std::string(vk::getParam<std::string>("remode/external_depthmap_source"));
+  }
+
+  ros::Subscriber dense_input_sub;
+  typedef message_filters::sync_policies::ApproximateTime<svo_msgs::DenseInput, sensor_msgs::Image> MySyncPolicy;
+  message_filters::Subscriber<svo_msgs::DenseInput> mf_sub_dense_input(nh, dense_input_topic, 100);
+  message_filters::Subscriber<sensor_msgs::Image> mf_sub_depth(nh, external_depth_topic, 100);
+  message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(10), mf_sub_dense_input, mf_sub_depth);
+  sync.registerCallback(boost::bind(&rmd::DepthmapNode::denseInputAndExternalDepthCallback, &dm_node, _1, _2));
+  std::cout << "sync subing..." << std::endl;
+//  if (external_depth_source_available) {
+//    std::cout << "sync subing..." << std::endl;
+//    sync.registerCallback(boost::bind(&rmd::DepthmapNode::denseInputAndExternalDepthCallback, &dm_node, _1, _2));
+//  } else {
+//    std::cout << "subing..." << std::endl;
+//    dense_input_sub = nh.subscribe(
+//        dense_input_topic,
+//        1,
+//        &rmd::DepthmapNode::denseInputCallback,
+//        &dm_node);
+//  }
 
   ros::Rate loop_rate(30);
   while(ros::ok())

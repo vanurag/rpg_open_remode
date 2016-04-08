@@ -90,6 +90,9 @@ public:
   float getCy() const
   { return cy_; }
 
+  cv::Mat getK() const
+  { return cv_K_; }
+
   std::mutex & getRefImgMutex()
   { return ref_img_mutex_; }
 

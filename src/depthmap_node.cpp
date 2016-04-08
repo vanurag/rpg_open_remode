@@ -33,20 +33,13 @@ cv::Affine3f rmd::DepthmapNode::viz_pose_ = cv::Affine3f();
 
 rmd::DepthmapNode::DepthmapNode(ros::NodeHandle &nh)
   : nh_(nh),
-    external_depth_it_(nh_),
     num_msgs_(0),
-    external_depth_topic_("/kinect2/sd/image_depth"),
-  viz_key_event(cv::viz::KeyboardEvent::Action::KEY_DOWN, "A", cv::viz::KeyboardEvent::ALT, 1)
+    viz_key_event(cv::viz::KeyboardEvent::Action::KEY_DOWN, "A", cv::viz::KeyboardEvent::ALT, 1)
 {
   state_ = rmd::State::TAKE_REFERENCE_FRAME;
 
   // external depth source
   external_depth_available_ = false;
-  if(vk::hasParam("remode/external_depthmap_source")) {
-    external_depth_topic_ = std::string(vk::getParam<std::string>("remode/external_depthmap_source"));
-  }
-  external_depth_sub_ = external_depth_it_.subscribe(
-      external_depth_topic_, 100, &rmd::DepthmapNode::ROSDepthImageCallback, this);
 }
 
 bool rmd::DepthmapNode::init()
@@ -88,6 +81,11 @@ bool rmd::DepthmapNode::init()
           vk::getParam<float>("remode/cam_k2"),
           vk::getParam<float>("remode/cam_r1"),
           vk::getParam<float>("remode/cam_r2"));
+    cv::Mat new_cam_K = depthmap_->getK();
+    cam_fx_ = new_cam_K.at<float>(0, 0);
+    cam_cx_ = new_cam_K.at<float>(0, 2);
+    cam_fy_ = new_cam_K.at<float>(1, 1);
+    cam_cy_ = new_cam_K.at<float>(1, 2);
   }
 
   if (vk::hasParam("remode/external_depthmap_source")) {
@@ -163,6 +161,7 @@ bool rmd::DepthmapNode::init()
 void rmd::DepthmapNode::denseInputCallback(
     const svo_msgs::DenseInputConstPtr &dense_input)
 {
+  std::cout << "In dense callback..." << std::endl;
   num_msgs_ += 1;
   if(!depthmap_)
   {
@@ -255,32 +254,38 @@ void rmd::DepthmapNode::denseInputCallback(
   }
 }
 
-void rmd::DepthmapNode::ROSDepthImageCallback(const sensor_msgs::ImageConstPtr& depth_msg)
+void rmd::DepthmapNode::denseInputAndExternalDepthCallback(
+    const svo_msgs::DenseInputConstPtr& dense_msg,
+    const sensor_msgs::ImageConstPtr& depth_msg)
 {
+  std::cout << "in combined callback..." << std::endl;
   if (external_depth_uchar_.empty()) {
     external_depth_uchar_.create(cv::Size(depth_msg->width, depth_msg->height), CV_16UC1);
     external_depth_float_.create(cv::Size(depth_msg->width, depth_msg->height), CV_32FC1);
     transformed_external_depth_float_ = cv::Mat::zeros(cv::Size(cam_width_, cam_height_), CV_32FC1);
   }
-  cv_bridge::CvImagePtr cv_ptr;
-  try {
-    cv_ptr = cv_bridge::toCvCopy(depth_msg, sensor_msgs::image_encodings::TYPE_16UC1);
-  } catch (cv_bridge::Exception& e) {
-    ROS_ERROR("depth cv_bridge exception: %s", e.what());
-    exit(1);
-  }
-  cv_ptr->image.copyTo(external_depth_uchar_);
-  for (int row = 0; row < external_depth_uchar_.rows; ++row) {
-    for (int col = 0; col < external_depth_uchar_.cols; ++col) {
-      external_depth_float_.at<float>(row, col) =
-          ((float)(external_depth_uchar_.at<unsigned short>(row, col)))/1000.0;
+  if (state_ == rmd::State::TAKE_REFERENCE_FRAME) {
+    cv_bridge::CvImagePtr cv_ptr;
+    try {
+      cv_ptr = cv_bridge::toCvCopy(depth_msg, sensor_msgs::image_encodings::TYPE_16UC1);
+    } catch (cv_bridge::Exception& e) {
+      ROS_ERROR("depth cv_bridge exception: %s", e.what());
+      exit(1);
     }
-  }
+    cv_ptr->image.copyTo(external_depth_uchar_);
+    for (int row = 0; row < external_depth_uchar_.rows; ++row) {
+      for (int col = 0; col < external_depth_uchar_.cols; ++col) {
+        external_depth_float_.at<float>(row, col) =
+            ((float)(external_depth_uchar_.at<unsigned short>(row, col)))/1000.0;
+      }
+    }
 
-  // Transform to same reference frame
-  transformExternalDepthmap();
-  external_depth_available_ = true;
-  ROS_INFO("read external depth...");
+    // Transform to same reference frame
+    transformExternalDepthmap();
+    external_depth_available_ = true;
+    ROS_INFO("Read external depth...");
+  }
+  denseInputCallback(dense_msg);
 }
 
 void rmd::DepthmapNode::transformExternalDepthmap() {
@@ -316,7 +321,8 @@ void rmd::DepthmapNode::denoiseAndPublishResults()
 
   if (external_depth_available_) {
     const cv::Mat depth = depthmap_->getDepthmap();
-    cv::Mat_<float> augmented_depth(depth);
+    cv::Mat_<float> augmented_depth;
+    depth.copyTo(augmented_depth);
 
     // Fuse
     for (int row = 0; row < cam_height_; ++row) {
