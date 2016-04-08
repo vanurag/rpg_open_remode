@@ -262,9 +262,10 @@ void rmd::DepthmapNode::denseInputAndExternalDepthCallback(
   if (external_depth_uchar_.empty()) {
     external_depth_uchar_.create(cv::Size(depth_msg->width, depth_msg->height), CV_16UC1);
     external_depth_float_.create(cv::Size(depth_msg->width, depth_msg->height), CV_32FC1);
-    transformed_external_depth_float_ = cv::Mat::zeros(cv::Size(cam_width_, cam_height_), CV_32FC1);
   }
   if (state_ == rmd::State::TAKE_REFERENCE_FRAME) {
+    transformed_external_depth_float_ = cv::Mat::zeros(cv::Size(cam_width_, cam_height_), CV_32FC1);
+    transformed_external_depth_mask_ = cv::Mat::zeros(cv::Size(cam_width_, cam_height_), CV_32FC1);
     cv_bridge::CvImagePtr cv_ptr;
     try {
       cv_ptr = cv_bridge::toCvCopy(depth_msg, sensor_msgs::image_encodings::TYPE_16UC1);
@@ -303,12 +304,22 @@ void rmd::DepthmapNode::transformExternalDepthmap() {
 //          std::cout << "row, col: " << row << ", " << col << " " << row_cam << ", " << col_cam << std::endl;
           if (col_cam >= 0 && col_cam < cam_width_ && row_cam >= 0 && row_cam < cam_height_) {
             transformed_external_depth_float_.at<float>(row_cam, col_cam) = point.z;
+            transformed_external_depth_mask_.at<float>(row_cam, col_cam) = 1.0;
           }
         }
       }
     }
   }
 
+  // fill holes
+  cv::Mat missing_external_depth(cam_height_, cam_width_, CV_32FC1);
+  cv::Mat blurred_external_depth_mask(cam_height_, cam_width_, CV_32FC1);
+  cv::blur(transformed_external_depth_float_, missing_external_depth, cv::Size(3,3));
+  cv::blur(transformed_external_depth_mask_, blurred_external_depth_mask, cv::Size(3,3));
+  missing_external_depth = missing_external_depth / blurred_external_depth_mask;
+  transformed_external_depth_float_ =
+      missing_external_depth +
+      transformed_external_depth_mask_.mul(transformed_external_depth_float_-missing_external_depth);
 }
 
 void rmd::DepthmapNode::denoiseAndPublishResults()
@@ -321,14 +332,14 @@ void rmd::DepthmapNode::denoiseAndPublishResults()
 
   if (external_depth_available_) {
     const cv::Mat depth = depthmap_->getDepthmap();
-    cv::Mat_<float> augmented_depth;
-    depth.copyTo(augmented_depth);
+    cv::Mat_<float> augmented_depth = cv::Mat::zeros(cv::Size(depth.cols, depth.rows), CV_32FC1);
+//    depth.copyTo(augmented_depth);
 
     // Fuse
     for (int row = 0; row < cam_height_; ++row) {
       for (int col = 0; col < cam_width_; ++col) {
         if (transformed_external_depth_float_.at<float>(row, col) > 0.5 &&
-            transformed_external_depth_float_.at<float>(row, col) < 3.0) {
+            transformed_external_depth_float_.at<float>(row, col) < 8.0) {
           augmented_depth.at<float>(row, col) = transformed_external_depth_float_.at<float>(row, col);
         }
       }

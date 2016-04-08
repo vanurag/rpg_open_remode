@@ -87,7 +87,7 @@ private:
 //  image_transport::ImageTransport external_depth_it_;
 //  image_transport::Subscriber external_depth_sub_;
 //  sensor_msgs::ImageConstPtr external_depth_msg_;
-  cv::Mat external_depth_uchar_, external_depth_float_, transformed_external_depth_float_;
+  cv::Mat external_depth_uchar_, external_depth_float_, transformed_external_depth_float_, transformed_external_depth_mask_;
   bool external_depth_available_;
 };
 
