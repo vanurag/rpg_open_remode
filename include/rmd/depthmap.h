@@ -18,6 +18,7 @@
 #ifndef RMD_DEPTHMAP_H
 #define RMD_DEPTHMAP_H
 
+#include <iostream>
 #include <memory>
 #include <Eigen/Eigen>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -61,6 +62,8 @@ public:
   void downloadDenoisedDepthmap(float lambda, int iterations);
 
   const cv::Mat_<float> getDepthmap() const;
+  const cv::Mat_<float> getAugmentedDepthmap() const;
+  int setAugmentedDepthmap(cv::Mat_<float> new_depth_map);
 
   void downloadConvergenceMap();
   const cv::Mat_<int> getConvergenceMap() const;
@@ -123,6 +126,7 @@ private:
   std::unique_ptr<DepthmapDenoiser> denoiser_;
 
   cv::Mat output_depth_32fc1_;
+  cv::Mat augmented_depth_32fc1_; // external depth source is fused (TODO:probabilistically)
   cv::Mat output_convergence_int_;
 
   const float fx_, fy_, cx_, cy_;

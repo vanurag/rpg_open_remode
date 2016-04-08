@@ -36,6 +36,7 @@ rmd::Depthmap::Depthmap(size_t width,
   denoiser_.reset(new rmd::DepthmapDenoiser(width_, height_));
 
   output_depth_32fc1_ = cv::Mat_<float>(height_, width_);
+  augmented_depth_32fc1_ = cv::Mat_<float>(height_, width_);
   output_convergence_int_ = cv::Mat_<int>(height_, width_);
   img_undistorted_32fc1_.create(height_, width_, CV_32FC1);
   img_undistorted_8uc1_.create(height_, width_, CV_8UC1);
@@ -125,6 +126,26 @@ void rmd::Depthmap::downloadDenoisedDepthmap(float lambda, int iterations)
 const cv::Mat_<float> rmd::Depthmap::getDepthmap() const
 {
   return output_depth_32fc1_;
+}
+
+const cv::Mat_<float> rmd::Depthmap::getAugmentedDepthmap() const
+{
+  return augmented_depth_32fc1_;
+}
+
+int rmd::Depthmap::setAugmentedDepthmap(cv::Mat_<float> new_depth_map)
+{
+  std::cout << "setting aug..." << std::endl;
+  if (new_depth_map.rows == augmented_depth_32fc1_.rows &&
+      new_depth_map.cols == augmented_depth_32fc1_.cols &&
+      new_depth_map.type() == augmented_depth_32fc1_.type()) {
+    std::cout << "copying.." << std::endl;
+    augmented_depth_32fc1_ = new_depth_map;
+    return 0;
+  } else {
+    std::cerr << "Wrong data type/image size. Please check." << std::endl;
+    return 1;
+  }
 }
 
 void rmd::Depthmap::downloadConvergenceMap()

@@ -32,8 +32,9 @@ rmd::Publisher::Publisher(ros::NodeHandle &nh,
   depthmap_ = depthmap;
   colored_.create(depthmap->getHeight(), depthmap_->getWidth(), CV_8UC3);
   image_transport::ImageTransport it(nh_);
-  depthmap_publisher_ = it.advertise("remode/depth",       10);
-  conv_publisher_     = it.advertise("remode/convergence", 10);
+  depthmap_publisher_ = it.advertise("remode/depth",           10);
+  augmented_depthmap_publisher_ = it.advertise("remode/augmented_depth", 10);
+  conv_publisher_     = it.advertise("remode/convergence",     10);
   pub_pc_ = nh_.advertise<PointCloud>("remode/pointcloud", 1);
 }
 
@@ -48,6 +49,15 @@ void rmd::Publisher::publishDepthmap() const
     cv_image.header.stamp = ros::Time::now();
     depthmap_publisher_.publish(cv_image.toImageMsg());
     std::cout << "INFO: publishing depth map" << std::endl;
+  }
+
+  cv_image.header.frame_id = "augmented_depthmap";
+  cv_image.image = depthmap_->getAugmentedDepthmap();
+  if(nh_.ok())
+  {
+    cv_image.header.stamp = ros::Time::now();
+    augmented_depthmap_publisher_.publish(cv_image.toImageMsg());
+    std::cout << "INFO: publishing augmented depth map" << std::endl;
   }
 }
 

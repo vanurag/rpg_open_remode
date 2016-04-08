@@ -63,6 +63,8 @@ private:
     viz_window_.setViewerPose(viz_viewer_pose);
   }
 
+  float cam_fx_, cam_fy_, cam_cx_, cam_cy_;
+  size_t cam_width_, cam_height_;
   std::shared_ptr<rmd::Depthmap> depthmap_;
   State state_;
   float ref_compl_perc_;
@@ -72,6 +74,18 @@ private:
 
   ros::NodeHandle &nh_;
   std::unique_ptr<rmd::Publisher> publisher_;
+
+  // external depthmap related
+  void ROSDepthImageCallback(const sensor_msgs::ImageConstPtr& depth_msg);
+  void transformExternalDepthmap();
+  float ext_fx_, ext_fy_, ext_cx_, ext_cy_;
+  rmd::SE3<float> ext_cam_to_cam_;
+  image_transport::ImageTransport external_depth_it_;
+  image_transport::Subscriber external_depth_sub_;
+  std::string external_depth_topic_;
+//  sensor_msgs::ImageConstPtr external_depth_msg_;
+  cv::Mat external_depth_uchar_, external_depth_float_, transformed_external_depth_float_;
+  bool external_depth_available_;
 };
 
 } // rmd namespace

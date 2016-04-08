@@ -32,11 +32,21 @@ cv::viz::Viz3d rmd::DepthmapNode::viz_window_ = cv::viz::Viz3d("Dense Input Pose
 cv::Affine3f rmd::DepthmapNode::viz_pose_ = cv::Affine3f();
 
 rmd::DepthmapNode::DepthmapNode(ros::NodeHandle &nh)
-  : nh_(nh)
-  , num_msgs_(0),
+  : nh_(nh),
+    external_depth_it_(nh_),
+    num_msgs_(0),
+    external_depth_topic_("/kinect2/sd/image_depth"),
   viz_key_event(cv::viz::KeyboardEvent::Action::KEY_DOWN, "A", cv::viz::KeyboardEvent::ALT, 1)
 {
   state_ = rmd::State::TAKE_REFERENCE_FRAME;
+
+  // external depth source
+  external_depth_available_ = false;
+  if(vk::hasParam("remode/external_depthmap_source")) {
+    external_depth_topic_ = std::string(vk::getParam<std::string>("remode/external_depthmap_source"));
+  }
+  external_depth_sub_ = external_depth_it_.subscribe(
+      external_depth_topic_, 100, &rmd::DepthmapNode::ROSDepthImageCallback, this);
 }
 
 bool rmd::DepthmapNode::init()
@@ -54,19 +64,19 @@ bool rmd::DepthmapNode::init()
   if(!vk::hasParam("remode/cam_cy"))
     return false;
 
-  const size_t cam_width  = vk::getParam<int>("remode/cam_width");
-  const size_t cam_height = vk::getParam<int>("remode/cam_height");
-  const float  cam_fx     = vk::getParam<float>("remode/cam_fx");
-  const float  cam_fy     = vk::getParam<float>("remode/cam_fy");
-  const float  cam_cx     = vk::getParam<float>("remode/cam_cx");
-  const float  cam_cy     = vk::getParam<float>("remode/cam_cy");
+  cam_width_  = vk::getParam<int>("remode/cam_width");
+  cam_height_ = vk::getParam<int>("remode/cam_height");
+  cam_fx_     = vk::getParam<float>("remode/cam_fx");
+  cam_fy_     = vk::getParam<float>("remode/cam_fy");
+  cam_cx_     = vk::getParam<float>("remode/cam_cx");
+  cam_cy_     = vk::getParam<float>("remode/cam_cy");
 
-  depthmap_ = std::make_shared<rmd::Depthmap>(cam_width,
-                                              cam_height,
-                                              cam_fx,
-                                              cam_cx,
-                                              cam_fy,
-                                              cam_cy);
+  depthmap_ = std::make_shared<rmd::Depthmap>(cam_width_,
+                                              cam_height_,
+                                              cam_fx_,
+                                              cam_cx_,
+                                              cam_fy_,
+                                              cam_cy_);
 
   if(vk::hasParam("remode/cam_k1") &&
      vk::hasParam("remode/cam_k2") &&
@@ -78,6 +88,62 @@ bool rmd::DepthmapNode::init()
           vk::getParam<float>("remode/cam_k2"),
           vk::getParam<float>("remode/cam_r1"),
           vk::getParam<float>("remode/cam_r2"));
+  }
+
+  if (vk::hasParam("remode/external_depthmap_source")) {
+    if(!vk::hasParam("remode/external_cam_fx"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_fy"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_cx"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_cy"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_00"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_10"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_20"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_30"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_01"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_11"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_21"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_31"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_02"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_12"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_22"))
+      return false;
+    if(!vk::hasParam("remode/external_cam_to_cam_32"))
+      return false;
+
+    ext_fx_ = vk::getParam<float>("remode/external_cam_fx");
+    ext_fy_ = vk::getParam<float>("remode/external_cam_fy");
+    ext_cx_ = vk::getParam<float>("remode/external_cam_cx");
+    ext_cy_ = vk::getParam<float>("remode/external_cam_cy");
+    float R[9];
+    float t[3];
+    R[0] = vk::getParam<float>("remode/external_cam_to_cam_00");
+    R[1] = vk::getParam<float>("remode/external_cam_to_cam_10");
+    R[2] = vk::getParam<float>("remode/external_cam_to_cam_20");
+    t[0] = vk::getParam<float>("remode/external_cam_to_cam_30");
+    R[3] = vk::getParam<float>("remode/external_cam_to_cam_01");
+    R[4] = vk::getParam<float>("remode/external_cam_to_cam_11");
+    R[5] = vk::getParam<float>("remode/external_cam_to_cam_21");
+    t[1] = vk::getParam<float>("remode/external_cam_to_cam_31");
+    R[6] = vk::getParam<float>("remode/external_cam_to_cam_02");
+    R[7] = vk::getParam<float>("remode/external_cam_to_cam_12");
+    R[8] = vk::getParam<float>("remode/external_cam_to_cam_22");
+    t[2] = vk::getParam<float>("remode/external_cam_to_cam_32");
+    rmd::SE3<float> T(R, t);
+    ext_cam_to_cam_ = T;
   }
 
   ref_compl_perc_    = vk::getParam<float>("remode/ref_compl_perc",   10.0f);
@@ -189,10 +255,84 @@ void rmd::DepthmapNode::denseInputCallback(
   }
 }
 
+void rmd::DepthmapNode::ROSDepthImageCallback(const sensor_msgs::ImageConstPtr& depth_msg)
+{
+  if (external_depth_uchar_.empty()) {
+    external_depth_uchar_.create(cv::Size(depth_msg->width, depth_msg->height), CV_16UC1);
+    external_depth_float_.create(cv::Size(depth_msg->width, depth_msg->height), CV_32FC1);
+    transformed_external_depth_float_ = cv::Mat::zeros(cv::Size(cam_width_, cam_height_), CV_32FC1);
+  }
+  cv_bridge::CvImagePtr cv_ptr;
+  try {
+    cv_ptr = cv_bridge::toCvCopy(depth_msg, sensor_msgs::image_encodings::TYPE_16UC1);
+  } catch (cv_bridge::Exception& e) {
+    ROS_ERROR("depth cv_bridge exception: %s", e.what());
+    exit(1);
+  }
+  cv_ptr->image.copyTo(external_depth_uchar_);
+  for (int row = 0; row < external_depth_uchar_.rows; ++row) {
+    for (int col = 0; col < external_depth_uchar_.cols; ++col) {
+      external_depth_float_.at<float>(row, col) =
+          ((float)(external_depth_uchar_.at<unsigned short>(row, col)))/1000.0;
+    }
+  }
+
+  // Transform to same reference frame
+  transformExternalDepthmap();
+  external_depth_available_ = true;
+  ROS_INFO("read external depth...");
+}
+
+void rmd::DepthmapNode::transformExternalDepthmap() {
+
+  for (int row = 0; row < external_depth_float_.rows; ++row) {
+    for (int col = 0; col < external_depth_float_.cols; ++col) {
+      if (external_depth_float_.at<float>(row, col) > 0.0) {
+        float x_ext = (col - ext_cx_)*external_depth_float_.at<float>(row, col)/ext_fx_;
+        float y_ext = (row - ext_cy_)*external_depth_float_.at<float>(row, col)/ext_fy_;
+        float3 point_ext = make_float3(x_ext, y_ext, external_depth_float_.at<float>(row, col));
+        float3 point = ext_cam_to_cam_ * point_ext;
+        if (point.z > 0.0) {
+          int col_cam = (int)((cam_fx_ * point.x / point.z)) + cam_cx_;
+          int row_cam = (int)((cam_fy_ * point.y / point.z)) + cam_cy_;
+//          std::cout << "row, col: " << row << ", " << col << " " << row_cam << ", " << col_cam << std::endl;
+          if (col_cam >= 0 && col_cam < cam_width_ && row_cam >= 0 && row_cam < cam_height_) {
+            transformed_external_depth_float_.at<float>(row_cam, col_cam) = point.z;
+          }
+        }
+      }
+    }
+  }
+
+}
+
 void rmd::DepthmapNode::denoiseAndPublishResults()
 {
   depthmap_->downloadDenoisedDepthmap(0.5f, 200);
   depthmap_->downloadConvergenceMap();
+
+  // Get Depthmaps from external source (ex: Kinect/Realsense)
+  std::cout << "denoising and publishing.." << std::endl;
+
+  if (external_depth_available_) {
+    const cv::Mat depth = depthmap_->getDepthmap();
+    cv::Mat_<float> augmented_depth(depth);
+
+    // Fuse
+    for (int row = 0; row < cam_height_; ++row) {
+      for (int col = 0; col < cam_width_; ++col) {
+        if (transformed_external_depth_float_.at<float>(row, col) > 0.5 &&
+            transformed_external_depth_float_.at<float>(row, col) < 3.0) {
+          augmented_depth.at<float>(row, col) = transformed_external_depth_float_.at<float>(row, col);
+        }
+      }
+    }
+    std::cout << "here3" << std::endl;
+
+    depthmap_->setAugmentedDepthmap(augmented_depth);
+
+    external_depth_available_ = false;
+  }
 
   std::async(std::launch::async,
              &rmd::Publisher::publishDepthmapAndPointCloud,
