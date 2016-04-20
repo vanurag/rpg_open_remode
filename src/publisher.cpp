@@ -34,6 +34,7 @@ rmd::Publisher::Publisher(ros::NodeHandle &nh,
   image_transport::ImageTransport it(nh_);
   depthmap_publisher_ = it.advertise("remode/depth",           10);
   augmented_depthmap_publisher_ = it.advertise("remode/augmented_depth", 10);
+  augmented_color_depthmap_publisher_ = it.advertise("remode/augmented_depth_color", 10);
   conv_publisher_     = it.advertise("remode/convergence",     10);
   pub_pc_ = nh_.advertise<PointCloud>("remode/pointcloud", 1);
 }
@@ -59,6 +60,16 @@ void rmd::Publisher::publishDepthmap() const
     augmented_depthmap_publisher_.publish(cv_image.toImageMsg());
     std::cout << "INFO: publishing augmented depth map" << std::endl;
   }
+
+  cv_image.encoding = sensor_msgs::image_encodings::TYPE_32FC3;
+  cv_image.header.frame_id = "augmented_depthmap_color";
+  cv_image.image = depthmap_->getColorAugmentedDepthmap();
+  if(nh_.ok())
+  {
+    cv_image.header.stamp = ros::Time::now();
+    augmented_color_depthmap_publisher_.publish(cv_image.toImageMsg());
+    std::cout << "INFO: publishing color coded augmented depth map" << std::endl;
+  }
 }
 
 void rmd::Publisher::publishPointCloud() const
@@ -67,6 +78,7 @@ void rmd::Publisher::publishPointCloud() const
     std::lock_guard<std::mutex> lock(depthmap_->getRefImgMutex());
 
     const cv::Mat depth = depthmap_->getDepthmap();
+//    const cv::Mat depth = depthmap_->getAugmentedDepthmap();
     const cv::Mat convergence = depthmap_->getConvergenceMap();
     const cv::Mat ref_img = depthmap_->getReferenceImage();
     const rmd::SE3<float> T_world_ref = depthmap_->getT_world_ref();
@@ -76,6 +88,7 @@ void rmd::Publisher::publishPointCloud() const
     const float cx = depthmap_->getCx();
     const float cy = depthmap_->getCy();
 
+    std::cout << "new cam f2: " << fx << ", " << fy << ", " << cx << ", " << cy << std::endl;
     for(int y=0; y<depth.rows; ++y)
     {
       for(int x=0; x<depth.cols; ++x)

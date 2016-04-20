@@ -53,7 +53,7 @@ private:
   ros::NodeHandle &nh_;
   std::shared_ptr<rmd::Depthmap> depthmap_;
 
-  image_transport::Publisher depthmap_publisher_, augmented_depthmap_publisher_;
+  image_transport::Publisher depthmap_publisher_, augmented_depthmap_publisher_, augmented_color_depthmap_publisher_;
   image_transport::Publisher conv_publisher_;
 
   PointCloud::Ptr pc_;

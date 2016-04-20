@@ -31,6 +31,18 @@
 cv::viz::Viz3d rmd::DepthmapNode::viz_window_ = cv::viz::Viz3d("Dense Input Pose");
 cv::Affine3f rmd::DepthmapNode::viz_pose_ = cv::Affine3f();
 
+inline float interpolate(float val, float y0, float x0, float y1, float x1) {
+  return (val - x0)*(y1 - y0) / (x1 - x0) + y0;
+}
+
+inline float base(float val) {
+  if (val <= -0.75f) return 0.0f;
+  else if (val <= -0.25f) return interpolate(val, 0.0f, -0.75f, 1.0f, -0.25f);
+  else if (val <= 0.25f) return 1.0f;
+  else if (val <= 0.75f) return interpolate(val, 1.0f, 0.25f, 0.0f, 0.75f);
+  else return 0.0;
+}
+
 rmd::DepthmapNode::DepthmapNode(ros::NodeHandle &nh)
   : nh_(nh),
     num_msgs_(0),
@@ -142,6 +154,7 @@ bool rmd::DepthmapNode::init()
     t[2] = vk::getParam<float>("remode/external_cam_to_cam_32");
     rmd::SE3<float> T(R, t);
     ext_cam_to_cam_ = T;
+    std::cout << "Trafo check: " << ext_cam_to_cam_.data[3] << std::endl;
   }
 
   ref_compl_perc_    = vk::getParam<float>("remode/ref_compl_perc",   10.0f);
@@ -291,12 +304,14 @@ void rmd::DepthmapNode::denseInputAndExternalDepthCallback(
 
 void rmd::DepthmapNode::transformExternalDepthmap() {
 
+  std::cout << "new cam f: " << cam_fx_ << ", " << cam_fy_ << ", " << cam_cx_ << ", " << cam_cy_ << std::endl;
   for (int row = 0; row < external_depth_float_.rows; ++row) {
     for (int col = 0; col < external_depth_float_.cols; ++col) {
       if (external_depth_float_.at<float>(row, col) > 0.0) {
-        float x_ext = (col - ext_cx_)*external_depth_float_.at<float>(row, col)/ext_fx_;
-        float y_ext = (row - ext_cy_)*external_depth_float_.at<float>(row, col)/ext_fy_;
-        float3 point_ext = make_float3(x_ext, y_ext, external_depth_float_.at<float>(row, col));
+        float x_ext = (col - ext_cx_)/ext_fx_;
+        float y_ext = (row - ext_cy_)/ext_fy_;
+//        float3 point_ext = external_depth_float_.at<float>(row, col)*normalize(make_float3(x_ext, y_ext, 1.0));
+        float3 point_ext = external_depth_float_.at<float>(row, col)*(make_float3(x_ext, y_ext, 1.0));
         float3 point = ext_cam_to_cam_ * point_ext;
         if (point.z > 0.0) {
           int col_cam = (int)((cam_fx_ * point.x / point.z)) + cam_cx_;
@@ -304,6 +319,7 @@ void rmd::DepthmapNode::transformExternalDepthmap() {
 //          std::cout << "row, col: " << row << ", " << col << " " << row_cam << ", " << col_cam << std::endl;
           if (col_cam >= 0 && col_cam < cam_width_ && row_cam >= 0 && row_cam < cam_height_) {
             transformed_external_depth_float_.at<float>(row_cam, col_cam) = point.z;
+//            transformed_external_depth_float_.at<float>(row, col) = point_ext.z;
             transformed_external_depth_mask_.at<float>(row_cam, col_cam) = 1.0;
           }
         }
@@ -332,21 +348,53 @@ void rmd::DepthmapNode::denoiseAndPublishResults()
 
   if (external_depth_available_) {
     const cv::Mat depth = depthmap_->getDepthmap();
-    cv::Mat_<float> augmented_depth = cv::Mat::zeros(cv::Size(depth.cols, depth.rows), CV_32FC1);
+    cv::Mat augmented_depth(cv::Size(depth.cols, depth.rows), CV_32FC1);
+//    cv::Mat_<float> augmented_depth_color = cv::Mat::zeros(cv::Size(depth.cols, depth.rows), CV_32FC3);
+    cv::Mat augmented_depth_color(cv::Size(depth.cols, depth.rows), CV_32FC3);
 //    depth.copyTo(augmented_depth);
 
     // Fuse
     for (int row = 0; row < cam_height_; ++row) {
       for (int col = 0; col < cam_width_; ++col) {
-        if (transformed_external_depth_float_.at<float>(row, col) > 0.5 &&
-            transformed_external_depth_float_.at<float>(row, col) < 8.0) {
+        if (transformed_external_depth_float_.at<float>(row, col) > 0.5) {
           augmented_depth.at<float>(row, col) = transformed_external_depth_float_.at<float>(row, col);
         }
       }
     }
-    std::cout << "here3" << std::endl;
+//    cv::Mat_<float> depth_colored;
+//    cv::cvtColor(depth, depth_colored, CV_GRAY2BGR);
+    std::cout << "fusing color..." << std::endl;
+    float blend_factor = 0.8;
+    float ext_depth_min = 0.5;
+    float ext_depth_max = 2.0;
+    for (int row = 0; row < cam_height_; ++row) {
+      for (int col = 0; col < cam_width_; ++col) {
+        if (transformed_external_depth_float_.at<float>(row, col) > ext_depth_min &&
+            transformed_external_depth_float_.at<float>(row, col) < ext_depth_max) {
+          float ext_depth_scaled = (transformed_external_depth_float_.at<float>(row, col) - ext_depth_min) /
+                                   (ext_depth_max-ext_depth_min);
+          float ext_depth_red = base(ext_depth_scaled-0.5f)*(ext_depth_max-ext_depth_min) + ext_depth_min;
+          float ext_depth_green = base(ext_depth_scaled)*(ext_depth_max-ext_depth_min) + ext_depth_min;
+          float ext_depth_blue = base(ext_depth_scaled+0.5f)*(ext_depth_max-ext_depth_min) + ext_depth_min;
+          augmented_depth_color.at<cv::Vec3f>(row, col)[0] =
+              blend_factor * ext_depth_blue +
+              (1-blend_factor) * depth.at<float>(row, col);
+          augmented_depth_color.at<cv::Vec3f>(row, col)[1] =
+              blend_factor * ext_depth_green +
+              (1-blend_factor) * depth.at<float>(row, col);
+          augmented_depth_color.at<cv::Vec3f>(row, col)[2] =
+              blend_factor * ext_depth_red +
+              (1-blend_factor) * depth.at<float>(row, col);
+        } else {
+          augmented_depth_color.at<cv::Vec3f>(row, col)[0] = depth.at<float>(row, col);
+          augmented_depth_color.at<cv::Vec3f>(row, col)[1] = depth.at<float>(row, col);
+          augmented_depth_color.at<cv::Vec3f>(row, col)[2] = depth.at<float>(row, col);
+        }
+      }
+    }
 
     depthmap_->setAugmentedDepthmap(augmented_depth);
+    depthmap_->setColorAugmentedDepthmap(augmented_depth_color);
 
     external_depth_available_ = false;
   }

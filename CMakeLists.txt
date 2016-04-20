@@ -48,7 +48,7 @@ if(BUILD_TESTS)
 endif(BUILD_TESTS)
 
 # NCC patch size (must be odd integer, typical values: 3, 5, 7)
-ADD_DEFINITIONS(-DRMD_CORR_PATCH_SIDE=7)
+ADD_DEFINITIONS(-DRMD_CORR_PATCH_SIDE=11)
 # Maximum extent of epipolar line search in pixels
 ADD_DEFINITIONS(-DRMD_MAX_EXTENT_EPIPOLAR_SEARCH=100)
 

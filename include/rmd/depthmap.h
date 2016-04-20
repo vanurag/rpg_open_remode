@@ -63,7 +63,9 @@ public:
 
   const cv::Mat_<float> getDepthmap() const;
   const cv::Mat_<float> getAugmentedDepthmap() const;
+  const cv::Mat getColorAugmentedDepthmap() const;
   int setAugmentedDepthmap(cv::Mat_<float> new_depth_map);
+  int setColorAugmentedDepthmap(cv::Mat new_depth_map);
 
   void downloadConvergenceMap();
   const cv::Mat_<int> getConvergenceMap() const;
@@ -130,6 +132,7 @@ private:
 
   cv::Mat output_depth_32fc1_;
   cv::Mat augmented_depth_32fc1_; // external depth source is fused (TODO:probabilistically)
+  cv::Mat augmented_depth_32fc3_; // external depth source is fused, with color coding (TODO:probabilistically)
   cv::Mat output_convergence_int_;
 
   const float fx_, fy_, cx_, cy_;
